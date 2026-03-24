@@ -1,42 +1,70 @@
-import 'package:dartz/dartz.dart';
+import 'package:fpdart/fpdart.dart';
+import 'package:injectable/injectable.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase;
 import '../../../../core/error/failures.dart';
-import '../../../../core/network/network_info.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
 
+@LazySingleton(as: AuthRepository)
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
-  final NetworkInfo networkInfo;
 
-  AuthRepositoryImpl({
-    required this.remoteDataSource,
-    required this.networkInfo,
-  });
+  AuthRepositoryImpl(this.remoteDataSource);
 
   @override
   Future<Either<Failure, User>> login(String email, String password) async {
-    if (await networkInfo.isConnected) {
-      try {
-        final remoteUser = await remoteDataSource.login(email, password);
-        return Right(remoteUser);
-      } catch (e) {
-        return Left(ServerFailure(e.toString()));
+    try {
+      final firebaseUser = await remoteDataSource.login(email, password);
+      if (firebaseUser != null) {
+        return Right(_mapToEntity(firebaseUser));
       }
-    } else {
-      return const Left(NetworkFailure());
+      return const Left(AuthFailure('User not found after login'));
+    } on firebase.FirebaseAuthException catch (e) {
+      return Left(AuthFailure(e.message ?? 'Unknown authentication error'));
+    } catch (e) {
+      return Left(AuthFailure(e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, User>> getCurrentUser() {
-    // Implementation for getting current user
-    throw UnimplementedError();
+  Future<Either<Failure, User>> register(String email, String password) async {
+    try {
+      final firebaseUser = await remoteDataSource.register(email, password);
+      if (firebaseUser != null) {
+        return Right(_mapToEntity(firebaseUser));
+      }
+      return const Left(AuthFailure('Registration failed'));
+    } on firebase.FirebaseAuthException catch (e) {
+      return Left(AuthFailure(e.message ?? 'Unknown registration error'));
+    } catch (e) {
+      return Left(AuthFailure(e.toString()));
+    }
   }
 
   @override
-  Future<Either<Failure, void>> logout() {
-    // Implementation for logout
-    throw UnimplementedError();
+  Future<Either<Failure, Unit>> logout() async {
+    try {
+      await remoteDataSource.logout();
+      return const Right(unit);
+    } catch (e) {
+      return Left(AuthFailure(e.toString()));
+    }
+  }
+
+  @override
+  Stream<Option<User>> get userStatus =>
+      remoteDataSource.userStream.map((firebaseUser) {
+        if (firebaseUser == null) return const None();
+        return Some(_mapToEntity(firebaseUser));
+      });
+
+  User _mapToEntity(firebase.User firebaseUser) {
+    return User(
+      id: firebaseUser.uid,
+      email: firebaseUser.email ?? '',
+      displayName: firebaseUser.displayName,
+      photoUrl: firebaseUser.photoURL,
+    );
   }
 }

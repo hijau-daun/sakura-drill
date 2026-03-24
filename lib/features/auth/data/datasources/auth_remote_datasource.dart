@@ -1,35 +1,41 @@
-import 'package:dio/dio.dart';
-import '../../../../core/network/dio_client.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase;
+import 'package:injectable/injectable.dart';
 import '../models/user_model.dart';
 
 abstract class AuthRemoteDataSource {
-  Future<UserModel> login(String email, String password);
+  Future<firebase.User?> login(String email, String password);
+  Future<firebase.User?> register(String email, String password);
+  Future<void> logout();
+  Stream<firebase.User?> get userStream;
 }
 
+@LazySingleton(as: AuthRemoteDataSource)
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
-  final DioClient client;
-
-  AuthRemoteDataSourceImpl(this.client);
+  final firebase.FirebaseAuth _firebaseAuth = firebase.FirebaseAuth.instance;
 
   @override
-  Future<UserModel> login(String email, String password) async {
-    try {
-      final response = await client.dio.post(
-        '/login',
-        data: {'email': email, 'password': password},
-      );
-      
-      if (response.statusCode == 200) {
-        return UserModel.fromJson(response.data);
-      } else {
-        throw DioException(
-          requestOptions: response.requestOptions,
-          response: response,
-          type: DioExceptionType.badResponse,
-        );
-      }
-    } catch (e) {
-      rethrow;
-    }
+  Future<firebase.User?> login(String email, String password) async {
+    final credential = await _firebaseAuth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    return credential.user;
   }
+
+  @override
+  Future<firebase.User?> register(String email, String password) async {
+    final credential = await _firebaseAuth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    return credential.user;
+  }
+
+  @override
+  Future<void> logout() async {
+    await _firebaseAuth.signOut();
+  }
+
+  @override
+  Stream<firebase.User?> get userStream => _firebaseAuth.authStateChanges();
 }
