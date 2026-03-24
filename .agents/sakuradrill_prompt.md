@@ -86,7 +86,7 @@ lib/
 - ​Phase 1: Core setup, dependencies, GoRouter routing, and Theming (Sakura UI/UX).
 - ​Phase 2: SRS Engine (Domain logic + Unit Tests).
 - ​Phase 3: Local Database setup (Hive/Drift) & Repositories.
-- ​Phase 4: Authentication flow (Firebase + Riverpod state).
+- ​Phase 4: Authentication flow (Firebase).
 - ​Phase 5: UI Implementation (Home, Study, Profile, Settings).
 
 
